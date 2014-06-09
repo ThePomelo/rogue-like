@@ -3,9 +3,9 @@ import math
 import textwrap
 import shelve
 
-############
+#############
 # CONSTANTS #
-############
+#############
 
 #size of the window
 SCREEN_WIDTH = 80
@@ -56,9 +56,9 @@ DEFAULT_ATTACK_SPEED = 30
 LIMIT_FPS = 60
 
 
-#######
+#########
 # TILES #
-#######
+#########
 
 mage_tile = 256+32+0 #2nd row, 1st sprite
 dead_mage_tile = 256+32+1
@@ -97,9 +97,9 @@ color_dark_ground = libtcod.Color(75, 75, 75)
 color_light_ground = libtcod.Color(150, 150, 150)
 
 
-#########
+###########
 # CLASSES #
-#########
+###########
 
 class Tile:
     #a tile of the map and its properties
@@ -325,8 +325,16 @@ class Item:
 
     def pick_up(self):
         #add to a player's inventory and remove from the map
+        
+        item_quantity = 1
+        for obj in inventory:
+            if obj.name == self.owner.name:
+                item_quantity += 1
+        
         if len(inventory) >= 26:
             message('Your inventory is full.  You cannot pick up a ' + self.owner.name + '!', libtcod.green)
+        elif self.owner.equipment and item_quantity > 9:
+            message('You can\'t hold any more ' + self.owner.name + 's.', libtcod.green)
         else:
             inventory.append(self.owner)
             objects.remove(self.owner)
@@ -419,9 +427,9 @@ class Equipment:
         message('Dequipped ' + self.owner.name + ' from ' + self.slot + '.', libtcod.light_yellow)
 
 
-############
+#############
 # FUNCTIONS #
-############
+#############
 
 def get_equipped_in_slot(slot): #returns the equipment in a slot, or None if empty
     for obj in inventory:
@@ -1282,9 +1290,9 @@ def main_menu():
             break
         
     
-################################
+##########################################
 #      INITIALIZATION AND MAIN LOOP      #
-################################
+##########################################
 
 libtcod.console_set_custom_font('tiles.png', libtcod.FONT_TYPE_GREYSCALE | libtcod.FONT_LAYOUT_TCOD, 32, 12)
 libtcod.console_init_root(SCREEN_WIDTH, SCREEN_HEIGHT, "Rogue-Like, the roguelike game", False, libtcod.RENDERER_SDL)
