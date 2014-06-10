@@ -19,8 +19,8 @@ MAP_HEIGHT = 38
 BAR_WIDTH = 20
 PANEL_HEIGHT = 7
 PANEL_Y = SCREEN_HEIGHT - PANEL_HEIGHT
-MSG_X = BAR_WIDTH + 2
-MSG_WIDTH = SCREEN_WIDTH - BAR_WIDTH - 2
+MSG_X = BAR_WIDTH + 10
+MSG_WIDTH = SCREEN_WIDTH - BAR_WIDTH - 10
 MSG_HEIGHT = PANEL_HEIGHT - 2
 INVENTORY_WIDTH = 35
 CHARACTER_SCREEN_WIDTH = 30
@@ -704,6 +704,9 @@ def render_all():
     global color_dark_ground, color_light_ground
     global fov_recompute
     global game_msgs
+    global hotkeys 
+    global hot_chars
+    global hot_types
 
     if fov_recompute:
         fov_recompute = False
@@ -743,6 +746,33 @@ def render_all():
     libtcod.console_set_default_background(panel, libtcod.black)
     libtcod.console_clear(panel)
 
+    #show hotkey bindings
+    libtcod.console_set_default_foreground(panel, libtcod.white)
+    libtcod.console_print_ex(panel, BAR_WIDTH + 2, 2,libtcod.BKGND_NONE, libtcod.LEFT, 'HOTKEYS')
+    
+    y = 3
+    for hot in (libtcod.KEY_1, libtcod.KEY_2, libtcod.KEY_3, libtcod.KEY_4):
+        libtcod.console_print_ex(panel, BAR_WIDTH + 2, y, libtcod.BKGND_NONE, libtcod.LEFT, '[' + str(y-2) + ']')
+        hot_quantity = 0
+        if len(hotkeys) != 0:
+            if hotkeys[hot] != 'None':
+                for obj in inventory:
+                    if obj.label == hotkeys[hot]: 
+                        hot_quantity += 1
+                        
+        if hot_chars[hot] != 'None':
+            libtcod.console_put_char_ex(panel, BAR_WIDTH + 6, y, hot_chars[hot], libtcod.white, libtcod.BKGND_NONE)
+            if hot_types[hot] == 'Stack':
+                libtcod.console_print_ex(panel, BAR_WIDTH + 8, y, libtcod.BKGND_NONE, libtcod.LEFT, str(hot_quantity))
+            elif hot_types[hot] == 'NoStack':
+                equipped_icon = False
+                for obj in inventory:
+                    if obj.label == hotkeys[hot]:
+                        equipped_icon = obj.equipment.is_equipped
+                if equipped_icon:
+                    libtcod.console_print_ex(panel, BAR_WIDTH + 8, y, libtcod.BKGND_NONE, libtcod.LEFT, 'E')
+        y += 1
+    
     #print the game messages, one line at a time
     y = 2
     for (line, color) in game_msgs:
@@ -913,17 +943,28 @@ def msgbox(text, width = 50):
     menu(text, [], width) #use menu() as a sort of message box
 
 def config_hotkeys():
-    global hotkeys
+    global hotkeys, hot_chars, hot_types
     
-    hotkeys = {}
+    hotkeys = {libtcod.KEY_1: 'None', libtcod.KEY_2: 'None', libtcod.KEY_3: 'None', libtcod.KEY_4: 'None'}
+    hot_chars = {libtcod.KEY_1: 'None', libtcod.KEY_2: 'None', libtcod.KEY_3: 'None', libtcod.KEY_4: 'None'}
+    hot_types = {libtcod.KEY_1: 'None', libtcod.KEY_2: 'None', libtcod.KEY_3: 'None', libtcod.KEY_4: 'None'}
     i = 0
-    for key in [libtcod.KEY_1, libtcod.KEY_2, libtcod.KEY_3, libtcod.KEY_4]:
+    for key in hotkeys.keys():
         i += 1
         libtcod.console_clear(window)
         render_all()
         hotkeys[key] = inventory_menu('Configure Hotkeys\nChoose an item for slot ' + str(i) + '.', return_label = True)
-        if hotkeys[key] == None: continue
+        if hotkeys[key] == None: 
+            hotkeys[key] = 'None'
+            continue
         message(hotkeys[key].capitalize() + ' has been set to slot ' + str(i) + '.', libtcod.light_blue)
+        for obj in inventory:
+            if obj.label == hotkeys[key]:
+                hot_chars[key] = obj.char
+                if obj.equipment:
+                    hot_types[key] = 'NoStack'
+                else:
+                    hot_types[key] = 'Stack'
     
 def handle_keys():
     global key
@@ -970,10 +1011,10 @@ def handle_keys():
             
             #check for hotkey press
             if key.vk in [libtcod.KEY_1, libtcod.KEY_2, libtcod.KEY_3, libtcod.KEY_4]:
-                if len(hotkeys) == 0 or hotkeys[key.vk] is None:
+                if len(hotkeys) == 0 or hotkeys[key.vk] == 'None':
                     config_hotkeys()
                 
-                elif hotkeys[key.vk] is not None:
+                elif hotkeys[key.vk] != 'None':
                     i = 0
                     while inventory[i].label != hotkeys[key.vk]:
                         i += 1
@@ -1197,7 +1238,7 @@ def load_game():
     initialize_fov()
 
 def new_game():
-    global player, inventory, game_msgs, game_state, dungeon_level, inventory_dict, hotkeys
+    global player, inventory, game_msgs, game_state, dungeon_level, inventory_dict, hotkeys, hot_chars, hot_types
 
     #create object representing the player
     fighter_component = Fighter(hp = 100, defense = 1, power = 2, xp = 0, death_function = player_death)
@@ -1215,8 +1256,10 @@ def new_game():
     inventory = []
     inventory_dict = {}
     
-    hotkeys = {}
-
+    hotkeys = {libtcod.KEY_1: 'None', libtcod.KEY_2: 'None', libtcod.KEY_3: 'None', libtcod.KEY_4: 'None'}
+    hot_chars = {libtcod.KEY_1: 'None', libtcod.KEY_2: 'None', libtcod.KEY_3: 'None', libtcod.KEY_4: 'None'}
+    hot_types = {libtcod.KEY_1: 'None', libtcod.KEY_2: 'None', libtcod.KEY_3: 'None', libtcod.KEY_4: 'None'}
+    
     #create the list of game messages and their colors, starts empty
     game_msgs = []
 
