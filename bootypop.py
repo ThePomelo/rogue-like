@@ -22,7 +22,7 @@ PANEL_Y = SCREEN_HEIGHT - PANEL_HEIGHT
 MSG_X = BAR_WIDTH + 2
 MSG_WIDTH = SCREEN_WIDTH - BAR_WIDTH - 2
 MSG_HEIGHT = PANEL_HEIGHT - 2
-INVENTORY_WIDTH = 50
+INVENTORY_WIDTH = 35
 CHARACTER_SCREEN_WIDTH = 30
 LEVEL_SCREEN_WIDTH = 40
 
@@ -806,7 +806,7 @@ def player_move_or_attack(dx, dy):
         fov_recompute = True
 
 def menu(header, options, width):
-    global key
+    global key, window
     
     if len(options) > 26: raise ValueError('Cannot have a menu with more than 26 options.')
 
@@ -874,7 +874,7 @@ def OLD_inventory_menu(header): #OBSOLETE, here for nostalgia
     if index is None or len(inventory) == 0: return None
     return inventory[index].item
 
-def inventory_menu(header):
+def inventory_menu(header, return_label = False):
     #show a menu with each item of the inventory as an option
     if len(inventory) == 0:
         options = ['Inventory is empty.']
@@ -896,8 +896,9 @@ def inventory_menu(header):
     options = sorted(options)
 
     index = menu(header, options, INVENTORY_WIDTH)
-
+    
     if index is None or len(inventory) == 0: return None
+        
     i = 0
     item_type = options[index]
     chosen_item = inventory[i]
@@ -905,13 +906,28 @@ def inventory_menu(header):
         i += 1
         chosen_item = inventory[i]
     
+    if return_label == True: return chosen_item.label
     return chosen_item.item
 
 def msgbox(text, width = 50):
     menu(text, [], width) #use menu() as a sort of message box
 
+def config_hotkeys():
+    global hotkeys
+    
+    hotkeys = {}
+    i = 0
+    for key in [libtcod.KEY_1, libtcod.KEY_2, libtcod.KEY_3, libtcod.KEY_4]:
+        i += 1
+        libtcod.console_clear(window)
+        render_all()
+        hotkeys[key] = inventory_menu('Configure Hotkeys\nChoose an item for slot ' + str(i) + '.', return_label = True)
+        if hotkeys[key] == None: continue
+        message(hotkeys[key].capitalize() + ' has been set to slot ' + str(i) + '.', libtcod.light_blue)
+    
 def handle_keys():
     global key
+    global hotkeys
 
     if key.vk == libtcod.KEY_ENTER and key.lalt:
         #alt+enter toggles fullscreen
@@ -929,20 +945,7 @@ def handle_keys():
             player.wait -= 1
             return
         
-        #movement keys
-        if key.vk == libtcod.KEY_UP:
-            player_move_or_attack(0, -1)
-
-        elif key.vk == libtcod.KEY_DOWN:
-            player_move_or_attack(0, 1)
-
-        elif key.vk == libtcod.KEY_LEFT:
-            player_move_or_attack(-1, 0)
-
-        elif key.vk == libtcod.KEY_RIGHT:
-            player_move_or_attack(1, 0)
-
-        #num pad support
+        #movement keys with num pad support
         elif key.vk == libtcod.KEY_UP or key.vk == libtcod.KEY_KP8:
             player_move_or_attack(0, -1)
         elif key.vk == libtcod.KEY_DOWN or key.vk == libtcod.KEY_KP2:
@@ -963,9 +966,29 @@ def handle_keys():
             pass  #do nothing ie wait for the monster to come to you
             
         else:
-            #test for other keys
             key_char = chr(key.c)
-            if key_char == 'g':
+            
+            #check for hotkey press
+            if key.vk in [libtcod.KEY_1, libtcod.KEY_2, libtcod.KEY_3, libtcod.KEY_4]:
+                if len(hotkeys) == 0 or hotkeys[key.vk] is None:
+                    config_hotkeys()
+                
+                elif hotkeys[key.vk] is not None:
+                    i = 0
+                    while inventory[i].label != hotkeys[key.vk]:
+                        i += 1
+                        if i == len(inventory):
+                            message('You no longer have this item.')
+                            return
+                    
+                    inventory[i].item.use()
+            
+            #manually configure hotkeys
+            elif key.vk == libtcod.KEY_5:
+                config_hotkeys()
+            
+            #test for other keys
+            elif key_char == 'g':
                 #pick up an item
                 for object in objects: #look for an item in the player's tile
                     if object.x == player.x and object.y ==player.y and object.item:
@@ -997,6 +1020,9 @@ def handle_keys():
                     '\nAttack: ' + str(player.fighter.power) + '\nDefense: ' + str(player.fighter.defense),
                     CHARACTER_SCREEN_WIDTH)
 
+            elif key_char == 'h':
+                config_hotkeys()
+            
             return 'didnt-take-turn'
 
 def check_level_up():
@@ -1171,7 +1197,7 @@ def load_game():
     initialize_fov()
 
 def new_game():
-    global player, inventory, game_msgs, game_state, dungeon_level, inventory_dict
+    global player, inventory, game_msgs, game_state, dungeon_level, inventory_dict, hotkeys
 
     #create object representing the player
     fighter_component = Fighter(hp = 100, defense = 1, power = 2, xp = 0, death_function = player_death)
@@ -1188,6 +1214,8 @@ def new_game():
 
     inventory = []
     inventory_dict = {}
+    
+    hotkeys = {}
 
     #create the list of game messages and their colors, starts empty
     game_msgs = []
