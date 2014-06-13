@@ -53,6 +53,9 @@ PLAYER_SPEED = 3
 DEFAULT_SPEED = 12
 DEFAULT_ATTACK_SPEED = 30
 
+#available hotkeys
+HOTKEY_OPTIONS = [libtcod.KEY_1, libtcod.KEY_2, libtcod.KEY_3, libtcod.KEY_4]
+
 LIMIT_FPS = 60
 
 
@@ -316,8 +319,6 @@ class ConfusedMonster:
             self.owner.ai = self.old_ai
             message('The ' + self.owner.name + ' is no longer confused', libtcod.red)
 
-        
-
 class Item:
     #an item that can be picked up and used
     def __init__(self, use_function = None):
@@ -392,7 +393,6 @@ class Item:
                 elif inventory_dict[self.owner.label] == 1:
                     del inventory_dict[self.owner.label]
                 
-
 class Equipment:
     #an object that can be equipped, yielding bonuses, automatically adds the Item component
     def __init__(self, slot, power_bonus = 0, defense_bonus = 0, max_hp_bonus = 0):
@@ -426,6 +426,63 @@ class Equipment:
         inventory_dict[self.owner.label] = 'unequipped'
         message('Dequipped ' + self.owner.name + ' from ' + self.slot + '.', libtcod.light_yellow)
 
+class Hotkey:
+    def __init__(self, button, object):
+        self.button = button
+        self.object = object
+        self.char = self.object.char
+        self.name = self.object.label
+        if self.object.equipment:
+            self.type = 'equipment'
+        else:
+            self.type = 'stackable'
+        for i in range(len(HOTKEY_OPTIONS)):
+            num = i + 1
+            if HOTKEY_OPTIONS[i] == self.button:
+                self.prompt = '[' + str(num) + '] ' + self.name.capitalize() + '\n'
+            
+    def compute_state(self):
+        if self.type == 'stackable':
+            self.state = 0
+            for obj in inventory:
+                if obj.label == self.name:
+                    self.state += 1
+        elif self.type == 'equipment':
+            for obj in inventory:
+                if obj.label == self.name:
+                    self.state = obj.equipment.is_equipped
+                    
+    def configure(self):
+        if self.button in HOTKEY_OPTIONS:
+            hotkeys.append(self)
+            self.compute_state()
+    
+    def use(self):
+        self.compute_state()
+        if self.state != 0 or self.type == 'equipment':
+            i = 0
+            hot_object = False
+            while not hot_object:
+                if inventory[i].label == self.name:
+                    hot_object = inventory[i]
+                i += 1
+        
+            hot_object.item.use()
+            
+        elif self.state == 0 and self.type == 'stackable':
+            message('You no longer have this item.')
+
+    def render_gui(self, x, y, key_display):
+        libtcod.console_print_ex(panel, x, y, libtcod.BKGND_NONE, libtcod.LEFT, '[' + key_display + ']')
+        libtcod.console_put_char_ex(panel, x + 4, y, self.char, libtcod.white, libtcod.BKGND_NONE)
+        self.compute_state()
+        if self.type == 'stackable':
+            libtcod.console_print_ex(panel, x + 6, y, libtcod.BKGND_NONE, libtcod.LEFT, str(self.state))
+        elif self.type == 'equipment' and self.state:
+            libtcod.console_print_ex(panel, x + 6, y, libtcod.BKGND_NONE, libtcod.LEFT, 'E')
+            
+        
+    
 
 #############
 # FUNCTIONS #
@@ -750,29 +807,13 @@ def render_all():
     libtcod.console_set_default_foreground(panel, libtcod.white)
     libtcod.console_print_ex(panel, BAR_WIDTH + 2, 2,libtcod.BKGND_NONE, libtcod.LEFT, 'HOTKEYS')
     
-    y = 3
-    for hot in (libtcod.KEY_1, libtcod.KEY_2, libtcod.KEY_3, libtcod.KEY_4):
-        libtcod.console_print_ex(panel, BAR_WIDTH + 2, y, libtcod.BKGND_NONE, libtcod.LEFT, '[' + str(y-2) + ']')
-        hot_quantity = 0
-        if len(hotkeys) != 0:
-            if hotkeys[hot] != 'None':
-                for obj in inventory:
-                    if obj.label == hotkeys[hot]: 
-                        hot_quantity += 1
-                        
-        if hot_chars[hot] != 'None':
-            libtcod.console_put_char_ex(panel, BAR_WIDTH + 6, y, hot_chars[hot], libtcod.white, libtcod.BKGND_NONE)
-            if hot_types[hot] == 'Stack':
-                libtcod.console_print_ex(panel, BAR_WIDTH + 8, y, libtcod.BKGND_NONE, libtcod.LEFT, str(hot_quantity))
-            elif hot_types[hot] == 'NoStack':
-                equipped_icon = False
-                for obj in inventory:
-                    if obj.label == hotkeys[hot]:
-                        equipped_icon = obj.equipment.is_equipped
-                if equipped_icon:
-                    libtcod.console_print_ex(panel, BAR_WIDTH + 8, y, libtcod.BKGND_NONE, libtcod.LEFT, 'E')
-        y += 1
-    
+    i = 0
+    for k in HOTKEY_OPTIONS:
+        for hot in hotkeys:
+            if k == hot.button:
+                hot.render_gui(BAR_WIDTH + 2, i + 3, str(i + 1))
+        i += 1
+            
     #print the game messages, one line at a time
     y = 2
     for (line, color) in game_msgs:
@@ -871,7 +912,7 @@ def menu(header, options, width):
 
     while True:
         #check for input in each iteration
-        libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS|libtcod.EVENT_MOUSE, key, mouse) 
+        libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS|libtcod.EVENT_MOUSE, key, mouse)
 
         index = key.c - ord('a')
         if key.vk == libtcod.KEY_NONE: continue #if nothing is pressed keep looping
@@ -884,7 +925,6 @@ def menu(header, options, width):
 
         elif index < 0 or index >= len(options): return None #if any other key is pressed close the menu
         
-    
 def OLD_inventory_menu(header): #OBSOLETE, here for nostalgia
     #show a menu with each item of the inventory as an option
     if len(inventory) == 0:
@@ -904,19 +944,19 @@ def OLD_inventory_menu(header): #OBSOLETE, here for nostalgia
     if index is None or len(inventory) == 0: return None
     return inventory[index].item
 
-def inventory_menu(header, return_label = False):
+def inventory_menu(header):
     #show a menu with each item of the inventory as an option
     if len(inventory) == 0:
         options = ['Inventory is empty.']
     else:
         options = []
-        for key in inventory_dict.keys():
-            text = key
-            if isinstance(inventory_dict[key], int) and inventory_dict[key] > 1:
-                text = key + ' (' + str(inventory_dict[key]) + ')'
-            if isinstance(inventory_dict[key], str) and inventory_dict[key] != 'unequipped':
+        for k in inventory_dict.keys():
+            text = k
+            if isinstance(inventory_dict[k], int) and inventory_dict[k] > 1:
+                text = k + ' (' + str(inventory_dict[k]) + ')'
+            if isinstance(inventory_dict[k], str) and inventory_dict[k] != 'unequipped':
                 i = 0
-                while inventory[i].label != key:
+                while inventory[i].label != k:
                     i += 1
                 item = inventory[i]
                 text = text + ' (on ' + item.equipment.slot + ')'
@@ -936,35 +976,10 @@ def inventory_menu(header, return_label = False):
         i += 1
         chosen_item = inventory[i]
     
-    if return_label == True: return chosen_item.label
     return chosen_item.item
 
 def msgbox(text, width = 50):
     menu(text, [], width) #use menu() as a sort of message box
-
-def config_hotkeys():
-    global hotkeys, hot_chars, hot_types
-    
-    hotkeys = {libtcod.KEY_1: 'None', libtcod.KEY_2: 'None', libtcod.KEY_3: 'None', libtcod.KEY_4: 'None'}
-    hot_chars = {libtcod.KEY_1: 'None', libtcod.KEY_2: 'None', libtcod.KEY_3: 'None', libtcod.KEY_4: 'None'}
-    hot_types = {libtcod.KEY_1: 'None', libtcod.KEY_2: 'None', libtcod.KEY_3: 'None', libtcod.KEY_4: 'None'}
-    i = 0
-    for key in hotkeys.keys():
-        i += 1
-        libtcod.console_clear(window)
-        render_all()
-        hotkeys[key] = inventory_menu('Configure Hotkeys\nChoose an item for slot ' + str(i) + '.', return_label = True)
-        if hotkeys[key] == None: 
-            hotkeys[key] = 'None'
-            continue
-        message(hotkeys[key].capitalize() + ' has been set to slot ' + str(i) + '.', libtcod.light_blue)
-        for obj in inventory:
-            if obj.label == hotkeys[key]:
-                hot_chars[key] = obj.char
-                if obj.equipment:
-                    hot_types[key] = 'NoStack'
-                else:
-                    hot_types[key] = 'Stack'
     
 def handle_keys():
     global key
@@ -1009,24 +1024,25 @@ def handle_keys():
         else:
             key_char = chr(key.c)
             
-            #check for hotkey press
-            if key.vk in [libtcod.KEY_1, libtcod.KEY_2, libtcod.KEY_3, libtcod.KEY_4]:
-                if len(hotkeys) == 0 or hotkeys[key.vk] == 'None':
-                    config_hotkeys()
-                
-                elif hotkeys[key.vk] != 'None':
-                    i = 0
-                    while inventory[i].label != hotkeys[key.vk]:
+            #check for hotkey press (press 5 for manual configuration)
+            if key.vk in HOTKEY_OPTIONS or key.vk == libtcod.KEY_5:
+                if key.vk == libtcod.KEY_5 or len(hotkeys) == 0 or (key.vk not in [h.button for h in hotkeys]):
+                    hotkeys = []
+                    render_all()
+                    i = 1
+                    for k in HOTKEY_OPTIONS:
+                        item_component = inventory_menu('Configure Hotkeys\nChoose an item for slot ' + str(i) + '.')
+                        if item_component is not None:
+                            new_hotkey = Hotkey(k, item_component.owner)
+                            new_hotkey.configure()
+                        libtcod.console_clear(window)
+                        render_all()
                         i += 1
-                        if i == len(inventory):
-                            message('You no longer have this item.')
-                            return
-                    
-                    inventory[i].item.use()
-            
-            #manually configure hotkeys
-            elif key.vk == libtcod.KEY_5:
-                config_hotkeys()
+                
+                elif key.vk in [h.button for h in hotkeys]:
+                    for hot in hotkeys:
+                        if hot.button == key.vk:
+                            hot.use()
             
             #test for other keys
             elif key_char == 'g':
@@ -1062,7 +1078,10 @@ def handle_keys():
                     CHARACTER_SCREEN_WIDTH)
 
             elif key_char == 'h':
-                config_hotkeys()
+                strings = ''
+                for element in [h.prompt for h in hotkeys]:
+                    strings = strings + element                
+                msgbox('Hotkeys\n\n' + strings, 30)
             
             return 'didnt-take-turn'
 
@@ -1256,9 +1275,7 @@ def new_game():
     inventory = []
     inventory_dict = {}
     
-    hotkeys = {libtcod.KEY_1: 'None', libtcod.KEY_2: 'None', libtcod.KEY_3: 'None', libtcod.KEY_4: 'None'}
-    hot_chars = {libtcod.KEY_1: 'None', libtcod.KEY_2: 'None', libtcod.KEY_3: 'None', libtcod.KEY_4: 'None'}
-    hot_types = {libtcod.KEY_1: 'None', libtcod.KEY_2: 'None', libtcod.KEY_3: 'None', libtcod.KEY_4: 'None'}
+    hotkeys = []
     
     #create the list of game messages and their colors, starts empty
     game_msgs = []
