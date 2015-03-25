@@ -1080,7 +1080,8 @@ def handle_keys():
             elif key_char == 'h':
                 strings = ''
                 for element in [h.prompt for h in hotkeys]:
-                    strings = strings + element                
+                    strings = strings + element
+                
                 msgbox('Hotkeys\n\n' + strings, 30)
             
             return 'didnt-take-turn'
